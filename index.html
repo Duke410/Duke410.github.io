@@ -9,8 +9,8 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --navy: #0b1a2e;
-      --navy-mid: #1a3050;
+      --navy: #071220;
+      --navy-mid: #122240;
       --steel: #B7C9E2;
       --steel-light: #dce8f5;
       --steel-pale: #f0f5fb;
@@ -33,7 +33,7 @@
 
     /* ── Header ── */
     header {
-      background: linear-gradient(to bottom, #060f1c, #0f2540);
+      background: linear-gradient(to bottom, #030c1a, #0a1e35);
       color: var(--white);
       padding: 3.5rem 2rem 3rem;
       text-align: center;
@@ -140,7 +140,7 @@
 
     .card-side {
       padding: 1.75rem;
-      background: var(--steel-pale);
+      background: #d4e3f5;
       display: flex;
       flex-direction: column;
       gap: 1.25rem;
@@ -221,8 +221,8 @@
     .tech-pill {
       font-size: 0.75rem;
       color: var(--navy-mid);
-      background: var(--steel-light);
-      border: 1px solid rgba(11, 26, 46, 0.1);
+      background: var(--white);
+      border: 1px solid rgba(11, 26, 46, 0.15);
       padding: 0.2rem 0.6rem;
       border-radius: var(--radius-sm);
       font-family: 'DM Sans', monospace;
@@ -239,13 +239,16 @@
       border: 1px solid rgba(11, 26, 46, 0.2);
       padding: 0.4rem 0.9rem;
       border-radius: var(--radius-sm);
-      transition: background 0.15s;
+      transition: background 0.15s, color 0.15s;
       align-self: flex-start;
       margin-top: auto;
+      background: var(--white);
     }
 
     .card-link:hover {
-      background: var(--steel-light);
+      background: var(--navy);
+      color: var(--steel-light);
+      border-color: var(--navy);
     }
 
     /* ── Video card ── */
