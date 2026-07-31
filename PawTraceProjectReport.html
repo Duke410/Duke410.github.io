@@ -285,107 +285,51 @@
 
   <h2>Overview</h2>
   <p>
-    Lost-dog matching is a retrieval problem, not a classification one. A per-dog classifier is a
-    non-starter in production: every newly registered dog would add a class and require retraining,
-    and most dogs have only a handful of photos. I used <strong>metric learning</strong> instead,
-    training an embedding where distance means similarity, so new dogs need no retraining at all.
+    Lost-dog matching is a retrieval problem, not a classification one. A per-dog classifier would
+    need retraining every time a dog is registered, and most dogs have only a handful of photos. I
+    used <strong>metric learning</strong> instead, training an embedding where distance means
+    similarity, so new dogs need no retraining at all. The difficulty is that one dog looks very
+    different between photographs while two unrelated retrievers can look nearly identical, so
+    anything leaning on breed or general appearance confidently returns the wrong animal.
   </p>
   <p>
-    The hard part is that one dog looks very different between photographs (angle, lighting, pose),
-    while two unrelated retrievers can look nearly identical. Any system leaning on breed or general
-    appearance confidently returns the wrong animal.
+    The decision that shaped everything else was <strong>initialising from a dog-breed
+    classifier</strong> rather than generic ImageNet weights. The backbone already understood dog
+    anatomy and coats &mdash; but a breed classifier is trained to treat two dogs of one breed as the
+    <em>same thing</em>, actively suppressing the individual detail this task depends on. Those
+    starting weights were both a head start and an obstacle, and most of the training effort went into
+    reshaping the deep layers where that breed-invariance was baked in.
   </p>
-
-  <h3>Key decisions</h3>
-  <ul>
-    <li>
-      <strong>Initialised from a dog-breed classifier</strong> rather than generic ImageNet weights.
-      The backbone already knew dog anatomy and coats. The catch: a breed classifier is trained to
-      treat two dogs of one breed as the <em>same thing</em>, actively suppressing the individual
-      detail this task needs. The starting weights are both a head start and an obstacle.
-    </li>
-    <li>
-      <strong>Unfroze the last 2 of 4 ResNet stages.</strong> Early layers (edges, textures) are
-      generic and worth keeping; the deep layers are where breed-invariance was baked in, so those
-      are what needed reshaping.
-    </li>
-    <li>
-      <strong>Selected checkpoints on mAP, not Rank-1.</strong> Rank-1 is noisy between epochs. mAP
-      considers where all of a dog&rsquo;s photos rank, making it both stabler and a better proxy for
-      the real objective.
-    </li>
-  </ul>
 
   <h2>Data</h2>
   <p>
-    No single public dataset covers this task, so training data was assembled from three, each
-    covering a gap in the others.
+    No single public dataset covers this task, so training data came from three:
+    <strong>DogFaceNet</strong> for face identities, <strong>MPDD</strong> for full bodies in varied
+    poses, and <strong>YT-BB-Dog</strong> for body identities at scale. Splits are
+    <strong>identity-level</strong> &mdash; every photo of a dog lands in one split, since splitting by
+    image would test the model on dogs it had already memorised. After cleaning:
+    <strong>3,355 dogs / 17,593 images</strong> for training, <strong>419 dogs / 2,176 images</strong>
+    held out.
   </p>
-  <div class="tablewrap">
-  <table>
-    <thead><tr><th>Source</th><th>Contributes</th><th>Weakness</th></tr></thead>
-    <tbody>
-      <tr><td><strong>DogFaceNet</strong></td><td>Dog faces, many identities, varied conditions</td><td>Aligned crops, little background variety</td></tr>
-      <tr><td><strong>MPDD</strong></td><td>Full bodies, multiple poses and locations</td><td>Small; often one session per dog</td></tr>
-      <tr><td><strong>YT-BB-Dog</strong></td><td>Body identities at scale</td><td>Frames from a single video per dog</td></tr>
-    </tbody>
-  </table>
-  </div>
 
   <div class="note">
     <p>
       <strong>Shortcut risk identified and mitigated.</strong> Every YT-BB image of a given dog comes
-      from one video, so background is constant within an identity. A model can score well by
-      learning the <em>scene</em> instead of the <em>dog</em>. I used it for training scale but never
+      from one video, so background is constant within an identity and a model can score well by
+      learning the <em>scene</em> rather than the <em>dog</em>. I used it for training scale but never
       as the measure of success, and excluded it entirely when selecting demo examples.
     </p>
   </div>
 
-  <ul>
-    <li>
-      <strong>Identity-level splits, not image-level.</strong> All photos of a dog land in exactly
-      one split. Splitting by image would test the model on dogs it had memorised.
-    </li>
-    <li>
-      <strong>Cleaning pipeline:</strong> de-duplicated near-identical frames (which make training
-      trivial and evaluation optimistic), removed corrupt images, and quarantined identity folders
-      containing more than one animal.
-    </li>
-  </ul>
-
-  <div class="tablewrap">
-  <table>
-    <thead><tr><th>Split</th><th class="num">Dogs</th><th class="num">Images</th><th>Composition</th></tr></thead>
-    <tbody>
-      <tr><td>Train</td><td class="num">3,355</td><td class="num">17,593</td><td>1,113 face / 2,242 body</td></tr>
-      <tr><td>Test (held out)</td><td class="num">419</td><td class="num">2,176</td><td>139 face / 280 body</td></tr>
-    </tbody>
-  </table>
-  </div>
-
   <h2>Training</h2>
   <p>
-    ResNet-101 producing a <strong>2,048-dimension L2-normalised embedding</strong> per image,
-    trained with <strong>batch-hard triplet loss</strong>. Batches are PK-sampled (16 identities
-    &times; 4 photos); for each anchor the loss selects the hardest positive and hardest negative,
-    then separates them by a 0.45 margin. Training on hard examples is what produces gradient at all;
-    random triplets are solved immediately.
+    ResNet-101 producing a <strong>2,048-dimension L2-normalised embedding</strong> per image, trained
+    with <strong>batch-hard triplet loss</strong>. Each batch is sampled as 16 identities &times; 4
+    photos, and for every anchor the loss takes the hardest positive and hardest negative available:
+    random triplets are solved immediately and yield no gradient, so learning only happens on the hard
+    cases. Face and body images are balanced 50/50 so neither domain dominates, and a variance penalty
+    tightens each identity&rsquo;s cluster, which triplet loss alone leaves loose.
   </p>
-  <ul>
-    <li><strong>Intra-identity variance penalty</strong> (weight 0.5) &mdash; triplet loss only constrains relative distance, permitting loose clusters. This tightens each identity.</li>
-    <li><strong>50/50 face/body batches</strong> so neither domain dominates the gradient.</li>
-    <li><strong>Random-crop augmentation</strong> (50% chance, 40&ndash;85% of frame) attacks the face/body framing gap, so the model learns scale invariance instead of two separate visual regimes.</li>
-    <li><strong>Early stopping on patience 30</strong> against a 1,000-epoch ceiling, keeping only the best checkpoint.</li>
-  </ul>
-
-  <div class="note">
-    <p>
-      <strong>Diagnostic caught early:</strong> a run ended with a flat curve that initially read as a
-      data ceiling. It had actually hit a wall-clock timeout and was still improving. Treating an
-      infrastructure limit as a modelling conclusion would have misdirected the next several
-      experiments.
-    </p>
-  </div>
 
   <h2>Results</h2>
   <p>
@@ -403,99 +347,57 @@
   </table>
   </div>
   <p>
-    <strong>Top-10 is the product metric.</strong> The system&rsquo;s job is to reduce thousands of
-    records to a shortlist a human scans in seconds, not to be infallible on the first guess. mAP
-    sits well below Rank-1 because ranking <em>all</em> of a dog&rsquo;s photos highly is much harder
-    than surfacing one.
-  </p>
-
-  <h3>Impact of fine-tuning</h3>
-  <div class="tablewrap">
-  <table>
-    <thead><tr><th>Rank-1</th><th class="num">Before</th><th class="num">After</th><th class="num">&Delta;</th></tr></thead>
-    <tbody>
-      <tr><td>Face crops</td><td class="num">84.3%</td><td class="num">91.2%</td><td class="num up">+6.9</td></tr>
-      <tr><td>Full-body photos</td><td class="num">67.6%</td><td class="num">93.3%</td><td class="num up">+25.7</td></tr>
-    </tbody>
-  </table>
-  </div>
-  <p>
-    The asymmetry confirms the breed-invariance hypothesis. Faces carry dense detail that survives a
-    breed-oriented encoder; bodies did not, and at 67.6% the pre-trained model was largely reporting
-    &ldquo;these are both spaniels.&rdquo; Body mAP nearly doubled (0.484 &rarr; 0.813). The training
-    bought its value precisely where the starting weights were weakest.
+    <strong>Top-10 is the product metric</strong> &mdash; the job is to cut thousands of records down
+    to a shortlist a human scans in seconds, not to be infallible on the first guess. Fine-tuning
+    lifted face Rank-1 from 84.3% to 91.2%, and full-body from <strong>67.6% to 93.3%</strong> (body
+    mAP 0.484 &rarr; 0.813). That asymmetry is what vindicates the initialisation choice: faces carry
+    dense detail that survives a breed-oriented encoder, bodies did not, and at 67.6% the pre-trained
+    model was largely reporting &ldquo;these are both spaniels.&rdquo;
   </p>
 
   <h2>System architecture</h2>
   <p>
-    FastAPI backend with SQLAlchemy over SQLite, serving a React + TypeScript frontend from the same
-    origin, packaged as a single Docker image on Hugging Face Spaces.
+    FastAPI and SQLAlchemy over SQLite, serving a React + TypeScript frontend from the same origin,
+    packaged as a single Docker image on Hugging Face Spaces. The scoring rule is the design decision
+    worth naming: a dog&rsquo;s match score is the <strong>maximum cosine similarity across all (query
+    photo &times; candidate photo) pairs</strong>, so one weak photo cannot drag down an identity that
+    also matches strongly, and every extra angle can only help. Embeddings are stored tagged with
+    model version so vectors from different generations are never compared, and the demo&rsquo;s
+    read-only behaviour is enforced by server middleware rather than by hiding UI controls. Making it
+    work on phones meant normalising images client-side before upload, and making it fit its host
+    meant profiling the process to ~551 MB against a 512 MB limit.
   </p>
+
+  <h2>Judgment calls</h2>
   <ul>
     <li>
-      <strong>Model versioning:</strong> Embeddings are stored tagged with model name and version so vectors from different model generations are never compared, preventing silent index corruption.
+      <strong>Rejected a feature after testing it.</strong> The breed classifier returned
+      &ldquo;Pomeranian, 100%&rdquo; for random noise and for a blank square. I tested a confidence
+      threshold to flag non-dog images; it <strong>cannot work</strong>, because genuine Pomeranians
+      score 99.85% &mdash; indistinguishable from noise. Rather than tell owners their real dog may not
+      be a dog, the interface states the limitation.
     </li>
     <li>
-      <strong>Dog-level aggregate scoring:</strong> Overall match score uses max cosine similarity across all (query photo &times; candidate photo) pairs. One low-quality photo cannot drag down an identity that also has strong matches.
+      <strong>Caught a contaminated benchmark.</strong> The breed model scored 91.2% top-1 on the
+      standard Stanford Dogs split, <em>higher</em> than its own model card claims, which signals
+      train/test overlap rather than success. A clean holdout gave 80.7%, and that is the figure
+      reported.
     </li>
     <li>
-      <strong>Modular search interface:</strong> Embedder, storage, and vector index sit behind clean abstract interfaces. Exact brute-force cosine search is used for current scale, with ANN indexing ready as a drop-in swap.
-    </li>
-    <li>
-      <strong>Server-side demo guardrails:</strong> Read-only behavior is enforced by server middleware rejecting all write methods rather than relying on hidden UI controls.
+      <strong>Built the demo to avoid flattering itself.</strong> Picking demo examples by score alone
+      surfaced near-duplicate photos matching at 96% &mdash; technically true, practically meaningless.
+      The rule became the most visually distinct photo that still ranks its own twin first, putting
+      demo scores at 70&ndash;90% rather than the high 90s.
     </li>
   </ul>
 
-  <h2>Engineering decisions &amp; edge cases</h2>
-
-  <h3>Rejected a feature after testing it</h3>
+  <h2>Next steps</h2>
   <p>
-    The breed classifier returned <strong>&ldquo;Pomeranian, 100%&rdquo;</strong> for random noise, a
-    page of text, and a blank square, while real Pomeranians scored 40&ndash;64%. With 120 classes and
-    no &ldquo;none of these&rdquo; option, softmax must elect a winner, and out-of-distribution inputs
-    often win by a landslide. I tested a confidence threshold to flag non-dog images:
-    <strong>it cannot work</strong>, because crisp photos of genuine Pomeranians score 99.85%,
-    indistinguishable from noise. Rather than ship a filter that tells owners their real dog may not
-    be a dog, the interface states the limitation.
+    The clearest gaps are <strong>open-set gating</strong> to reject non-canine images before
+    embedding, a <strong>cross-condition benchmark</strong> of the same dogs across different cameras
+    and dates, an <strong>ANN index</strong> as the database approaches 100k vectors, and
+    <strong>threshold calibration</strong> to turn similarity into probability bounds.
   </p>
-
-  <h3>Caught a contaminated benchmark</h3>
-  <p>
-    The breed model scored 91.2% top-1 on the standard Stanford Dogs split, <em>higher</em> than its
-    own model card claims, which signals train/test overlap rather than success. On a clean holdout it
-    scored <strong>80.7% top-1 / 98.0% top-10</strong>. The conservative figure is the one reported,
-    and the interface qualifies it by image quality.
-  </p>
-
-  <h3>Built the demo to avoid flattering itself</h3>
-  <p>
-    Selecting demo examples by score alone produced near-duplicate photos matching at 96%, technically
-    true and practically meaningless. Selecting the <em>most</em> visually distinct photo instead
-    produced unusable images (dogs facing away, mid-bite). The working rule: the most distinct photo
-    that still ranks its own twin first with a solid score. Demo scores landed at 70&ndash;90% rather
-    than the high 90s, which is the honest picture.
-  </p>
-
-  <h3>Mobile Safari &amp; HEIC upload failures</h3>
-  <p>
-    Uploads initially failed on mobile devices due to unhandled HEIC formats and large camera payloads (~25 MB). 
-    Fixed by implementing client-side normalization in JavaScript (decoding, downscaling to 1024px max edge, JPEG compression) prior to upload. 
-    This bypassed browser MIME-type issues, reduced upload payloads by ~95%, and drastically improved mobile reliability, with server-side HEIC conversion added as a fallback.
-  </p>
-
-  <h3>Deployment &amp; infrastructure diagnostics</h3>
-  <ul>
-    <li><strong>Memory footprint optimization:</strong> Resolved container memory crashes by profiling model runtime overhead (~551 MB resident) against 512 MB platform limits, converting an ambiguous slowdown into a specific memory allocation decision.</li>
-    <li><strong>SQLite WAL persistence:</strong> Fixed a deployment issue where SQLite Write-Ahead Logging (WAL) session changes were omitted from container snapshots by implementing explicit database checkpoints prior to deployment commits.</li>
-  </ul>
-
-  <h2>Future Architecture &amp; Next Steps</h2>
-  <ul>
-    <li><strong>Open-set confidence gating:</strong> Develop an out-of-distribution detection mechanism to reject non-canine images prior to embedding generation.</li>
-    <li><strong>Cross-condition benchmark dataset:</strong> Curate evaluation sets featuring the same dogs across varied cameras, lighting conditions, and dates to stress-test real-world performance.</li>
-    <li><strong>Approximate Nearest Neighbor (ANN) index:</strong> Integrate FAISS or ScaNN as database size expands toward 100k+ candidate vectors.</li>
-    <li><strong>Threshold calibration:</strong> Calibrate similarity scores to establish probability bounds, enabling automated alert notifications instead of manual review.</li>
-  </ul>
 
   <footer>
     <p>PawTrace Summer Internship Project Report · Built by Elliott Duke</p>
