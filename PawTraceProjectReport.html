@@ -283,21 +283,21 @@
 
 <div class="wrap">
 
-  <p class="eyebrow">Summer Internship Project Report · ML & Full-Stack Systems</p>
   <h1>PawTrace: identifying individual dogs from photographs</h1>
   <div class="rule"></div>
 
   <p class="lede">
-    Most animal-vision models answer "what breed is this dog?" PawTrace answers a harder question:
-    "is this the <em>same</em> dog?" It fine-tunes a ResNet-101 with metric learning so that two
-    photographs of one animal land close together in feature space, and two look-alikes do not. The
-    result is a search engine for lost dogs, shipped as a live, read-only demo.
+    PawTrace is a search engine for lost dogs that finds them based on their photos: upload an image,
+    and it ranks a database of found dogs by how closely each one matches that specific dog.
+    Two pipelines share a ResNet-101 backbone, a breed classification pipeline to narrow down the pool,
+    and an image similarity search, fine-tuned with metric learning to tell individuals apart rather
+    than breeds. The system is currently deployed as a live, read-only demo with breed and location filtering disabled.
   </p>
 
   <div class="stats">
     <div class="stat"><b>>90%</b><span>Correct dog ranked first</span></div>
     <div class="stat"><b>>95%</b><span>Correct dog in the top 10</span></div>
-    <div class="stat"><b>+21</b><span>Points of body accuracy added by fine-tuning</span></div>
+    <div class="stat"><b>+21</b><span>Points of accuracy added by fine-tuning</span></div>
   </div>
 
 
@@ -309,57 +309,72 @@
 
   <h2>Overview</h2>
   <p>
-    Lost-dog matching is a retrieval problem, not a classification one. A per-dog classifier would
-    need retraining every time a dog is registered, and most dogs have only a handful of photos. I
-    used <strong>metric learning</strong> instead, training an embedding where distance means
-    similarity, so new dogs need no retraining at all. The difficulty is that one dog looks very
-    different between photographs while two unrelated retrievers can look nearly identical, so
-    anything leaning on breed or general appearance confidently returns the wrong animal.
+    When I came up with the idea for this project, I decided that I would need to compare dogs using 
+    image embeddings rather than simply trying to classify them. So every time a picture is uploaded,
+    it goes through a model to determine the dog in the picture's estimated breed and another model 
+    that turns it into an embedding, which is a list of numbers describing that image. This embedding 
+    keeps track of all the different features of the dog in the image, such as fur color, snout length, 
+    or body size, and it gets stored in the database alongside the dog it belongs to. When someone 
+    searches the database with a new dog, the system compares the embeddings for its photos against 
+    all of the stored dogs' embeddings and scores how similar they are. This way, each image only needs 
+    to be run through the models one time.
   </p>
   <p>
-    The decision that shaped everything else was <strong>initialising from a dog-breed
-    classifier</strong> rather than generic ImageNet weights. The backbone already understood dog
-    anatomy and coats &mdash; but a breed classifier is trained to treat two dogs of one breed as the
-    <em>same thing</em>, actively suppressing the individual detail this task depends on. Those
-    starting weights were both a head start and an obstacle, and most of the training effort went into
-    reshaping the deep layers where that breed-invariance was baked in.
+    An added layer of difficulty comes from the fact that the same dog can look completely different 
+    between two photos depending on the angle, the lighting, and the pose, while two unrelated dogs 
+    can look nearly identical. Because of this, anything that leans too heavily on breed or general 
+    appearance was going to confidently return the wrong dog.
+  </p>
+  <p>
+    This was a risk I knew about going in, so I spent some time trying to mitigate it. I found CNN 
+    models that were very good at telling breeds apart, but not quite as good at telling two individual 
+    dogs of one breed apart, which is the case that matters here. However, I thought breed-specific
+    information might be useful for re-identification, so I decided to use a breed classification model
+    as a base for the dog re-identification model. I ended up training only the last level of the
+    classification model, so that it would retain as much breed information as possible before being
+    fine tuned using metric learning to recognize individual dogs using triplet loss. In this way, I
+    was able to make it so that the distance between two embeddings actually reflects whether they
+    show the same dog.
   </p>
 
   <h2>Data</h2>
   <p>
-    No single public dataset covers this task, so training data came from three:
-    <strong>DogFaceNet</strong> for face identities, <strong>MPDD</strong> for full bodies in varied
-    poses, and <strong>YT-BB-Dog</strong> for body identities at scale. Splits are
-    <strong>identity-level</strong> &mdash; every photo of a dog lands in one split, since splitting by
-    image would test the model on dogs it had already memorised. After cleaning:
-    <strong>3,355 dogs / 17,593 images</strong> for training, <strong>419 dogs / 2,176 images</strong>
-    held out.
+    No single public dataset covered what I needed, so I put the training set together from three of
+    them. DogFaceNet gave me a large number of face identities, Multi Pose Dog Dataset (MPDD) gave me 
+    full body shots of the same dogs in different poses, and YT-BB-Dog gave me body identities at a 
+    much larger scale. After cleaning out corrupt files, near duplicate frames, and folders that turned 
+    out to contain more than one dog, I was left with 3,355 dogs and 17,593 images for training and 419 
+    dogs and 2,176 images held out for testing.
   </p>
 
   <div class="note">
     <p>
-      <strong>Shortcut risk, and where it bites.</strong> Every YT-BB image of a given dog comes from
-      one video, so background is constant within an identity and a model can score well by learning the
-      <em>scene</em> rather than the <em>dog</em>. It is also 64% of the held-out test set &mdash; 270 of
-      419 dogs &mdash; so it shapes the reported numbers, not just training. Results below measures
-      exactly how much.
+      One catch worth being upfront about. Every image of a given dog in the YT-BB-Dog dataset
+      comes from a single video, so the background stays the same across all of that dog's photos. 
+      Additionally, the images in DogFaceNet and MPDD were often taken multiple in a row, so their 
+      backgrounds tended to be similar for a given dog as well. This meant model can score well by 
+      learning the scene instead of learning the dog.
     </p>
   </div>
 
   <h2>Training</h2>
   <p>
-    ResNet-101 producing a <strong>2,048-dimension L2-normalised embedding</strong> per image, trained
-    with <strong>batch-hard triplet loss</strong>. Each batch is sampled as 16 identities &times; 4
-    photos, and for every anchor the loss takes the hardest positive and hardest negative available:
-    random triplets are solved immediately and yield no gradient, so learning only happens on the hard
-    cases. Face and body images are balanced 50/50 so neither domain dominates, and a variance penalty
-    tightens each identity&rsquo;s cluster, which triplet loss alone leaves loose.
+    The model started as a ResNet-101 model fine tuned for dog breed classification that outputs a
+    2,048 dimension embedding for each image. Images are normalized so that comparing two of them is just 
+    a matter of taking the cosine similarity between the two embeddings. I trained it further using batch-hard
+    triplet loss, which samples each batch as 16 different dogs with 4 photos each, and then for every image 
+    in that batch picks out the hardest positive, meaning the photo of the same dog that looks least similar
+    to it, and the hardest negative, meaning the photo of a different dog that looks most similar to it. The 
+    reason for doing it this way is that randomly chosen triplets are almost always solved immediately and
+    produce no gradient at all, so the model really only learns from the difficult cases. I also balanced faces 
+    and bodies 50/50 within each batch so that neither one dominated the training.
   </p>
 
   <h2>Results</h2>
   <p>
-    Measured on <strong>419 held-out dogs (2,176 photos)</strong> using the standard re-ID protocol:
-    every image queries all the others, excluded from its own gallery.
+    To measure how well this worked I used the standard re-identification protocol on the 419 held-out test 
+    dogs, where every image in turn is used as a query against all of the other images, with the query's own 
+    image excluded from the results it is scored against.
   </p>
   <div class="tablewrap">
   <table>
@@ -367,32 +382,39 @@
     <tbody>
       <tr><td>Face</td><td class="num">90.9%</td><td class="num">97.0%</td><td class="num">98.8%</td><td class="num">65.0%</td></tr>
       <tr><td>Body</td><td class="num">93.3%</td><td class="num">97.1%</td><td class="num">98.1%</td><td class="num">66.4%</td></tr>
-      <tr><td><strong>Combined</strong></td><td class="num"><strong>92.4%</strong></td><td class="num"><strong>97.0%</strong></td><td class="num"><strong>98.2%</strong></td><td class="num"><strong>65.6%</strong></td></tr>
+      <tr><td>Combined</td><td class="num">92.4%</td><td class="num">97.0%</td><td class="num">98.2%</td><td class="num">65.6%</td></tr>
     </tbody>
   </table>
   </div>
   <p>
-    <strong>Top-10 is the product metric</strong> &mdash; the job is to cut thousands of records down
-    to a shortlist a human scans in seconds, not to be infallible on the first guess. Fine-tuning
-    lifted face Rank-1 from 84.3% to 91.2%, and full-body from <strong>67.6% to 93.3%</strong> (body
-    mAP 0.484 &rarr; 0.813). That asymmetry is what vindicates the initialisation choice: faces carry
-    dense detail that survives a breed-oriented encoder, bodies did not, and at 67.6% the pre-trained
-    model was largely reporting &ldquo;these are both spaniels.&rdquo;
+    Rank-1, top 5, and top 10 all ask whether the right dog showed up somewhere near the front of the
+    results. mAP, which stands for mean average precision, asks a harder question: it looks at where
+    every other photo of that dog landed in the ranking, not just the best one. A dog with
+    one strong match and four weak ones can score a perfect rank-1 and still have a lower mAP, which
+    is why the mAP column sits so far below the others.
+  </p>
+  <p>
+    The number I pay the most attention to is top 10 rather than rank 1, because the point of the
+    system is to cut a database of thousands of dogs down to a shortlist that a person can look
+    through in a few seconds, not to be right on the very first guess.
+  </p>
+  <p>
+    In the end, fine-tuning made a large difference, and it made a much larger difference for bodies
+    than it did for faces. Face rank-1 went from 84.3% to 91.2%, while full body went from 67.6% to
+    93.3%, and body mAP went from 48.4% to 81.3%. I think that gap is the clearest evidence
+    that starting from a breed classifier was both a help and a problem. Faces have enough fine
+    detail that a breed-focused encoder still keeps track of individual dogs reasonably well, but
+    bodies do not, and at 67.6% the pre-trained model was basically just reporting that two dogs are
+    both the same breed.
   </p>
 
   <h2>System architecture</h2>
   <p>
-    FastAPI and SQLAlchemy over SQLite, serving a React + TypeScript frontend from the same origin,
-    packaged as a single Docker image on Hugging Face Spaces. The scoring rule is the design decision
-    worth naming: a dog&rsquo;s match score is the <strong>maximum cosine similarity across all (query
-    photo &times; candidate photo) pairs</strong>, so one weak photo cannot drag down an identity that
-    also matches strongly, and every extra angle can only help. Embeddings are stored tagged with
-    model version so vectors from different generations are never compared, and the demo&rsquo;s
-    read-only behaviour is enforced by server middleware rather than by hiding UI controls. Making it
-    work on phones meant normalising images client-side before upload, and making it fit its host
-    meant profiling the process to ~551 MB against a 512 MB limit.
+    The backend for this project is built on FastAPI with SQLAlchemy over SQLite, serving a React and 
+    TypeScript frontend from the same origin, and the whole thing is packaged as a single Docker image 
+    running on Hugging Face Spaces.
   </p>
- 
+
   <footer>
     <p>PawTrace Summer Internship Project Report · Built by Elliott Duke</p>
   </footer>
