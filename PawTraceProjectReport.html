@@ -173,6 +173,34 @@
     padding: 0.2rem 0.6rem;
   }
 
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--navy);
+    color: var(--white);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0.65rem 1.25rem;
+    border-radius: var(--radius-sm);
+    transition: background 0.15s;
+  }
+
+  .btn:hover { background: var(--navy-mid); }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--navy-mid);
+    outline-offset: 3px;
+  }
+
+  .btn .arrow { transition: transform 0.15s; }
+  .btn:hover .arrow { transform: translateX(2px); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn, .btn .arrow { transition: none; }
+  }
+
   table {
     width: 100%;
     border-collapse: collapse;
@@ -267,20 +295,17 @@
   </p>
 
   <div class="stats">
-    <div class="stat"><b>>90%</b><span>Correct dog ranked first</span></div>
-    <div class="stat"><b>>95%</b><span>Correct dog in top 10</span></div>
-    <div class="stat"><b>1,000</b><span>Dogs in the live demo</span></div>
+    <div class="stat"><b>92%</b><span>Correct dog ranked first</span></div>
+    <div class="stat"><b>&gt;95%</b><span>Correct dog in the top 10</span></div>
+    <div class="stat"><b>+26</b><span>Points of body accuracy added by fine-tuning</span></div>
   </div>
 
-  <div class="meta">
-    <span class="tag">PyTorch</span>
-    <span class="tag">ResNet-101</span>
-    <span class="tag">Triplet loss</span>
-    <span class="tag">FastAPI</span>
-    <span class="tag">React + TypeScript</span>
-    <span class="tag">Docker</span>
-    <span class="tag">Hugging Face Spaces</span>
-  </div>
+
+  <p style="margin: 1.75rem 0 0;">
+    <a class="btn" href="https://huggingface.co/spaces/Duke410/PawTrace">
+      View live demo <span class="arrow" aria-hidden="true">&rarr;</span>
+    </a>
+  </p>
 
   <h2>Overview</h2>
   <p>
@@ -313,10 +338,11 @@
 
   <div class="note">
     <p>
-      <strong>Shortcut risk identified and mitigated.</strong> Every YT-BB image of a given dog comes
-      from one video, so background is constant within an identity and a model can score well by
-      learning the <em>scene</em> rather than the <em>dog</em>. I used it for training scale but never
-      as the measure of success, and excluded it entirely when selecting demo examples.
+      <strong>Shortcut risk, and where it bites.</strong> Every YT-BB image of a given dog comes from
+      one video, so background is constant within an identity and a model can score well by learning the
+      <em>scene</em> rather than the <em>dog</em>. It is also 64% of the held-out test set &mdash; 270 of
+      419 dogs &mdash; so it shapes the reported numbers, not just training. Results below measures
+      exactly how much.
     </p>
   </div>
 
@@ -352,6 +378,66 @@
     mAP 0.484 &rarr; 0.813). That asymmetry is what vindicates the initialisation choice: faces carry
     dense detail that survives a breed-oriented encoder, bodies did not, and at 67.6% the pre-trained
     model was largely reporting &ldquo;these are both spaniels.&rdquo;
+  </p>
+
+  <h3>Does it still work when the background changes?</h3>
+  <p>
+    A high top-10 invites scrutiny, and it should. Most of the test set is YT-BB, where a dog&rsquo;s
+    photos are frames from a single video: same place, same light, same session. A model can score well
+    there by recognising the <em>scene</em>. To find out whether that is what was happening, I ran the
+    same retrieval protocol twice over the held-out Sibetan camera-trap set, which photographs each dog
+    across multiple sessions &mdash; once with the dog&rsquo;s own session available in the gallery, and
+    once with it banned.
+  </p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Gallery</th><th class="num">Rank-1</th><th class="num">Top-5</th><th class="num">Top-10</th></tr></thead>
+    <tbody>
+      <tr><td>Same session allowed <span style="color: var(--ink-muted)">(standard protocol)</span></td><td class="num">92.5%</td><td class="num">98.6%</td><td class="num">99.5%</td></tr>
+      <tr><td>Cross-session only <span style="color: var(--ink-muted)">(shortcut removed)</span></td><td class="num">51.8%</td><td class="num">74.7%</td><td class="num">82.3%</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>
+    The first row reproduces the reported figures almost exactly, confirming the protocols match. The
+    second is the same images and the same model with one change &mdash; and Rank-1 falls by roughly 40
+    points. Some of that gap is genuine background reliance and some is domain shift, since this set was
+    never trained on, so the true cross-session figure sits somewhere between. The honest reading is that
+    <strong>the reported numbers describe retrieval within a session</strong>, and the real lost-dog case
+    &mdash; a photo taken today against one taken last week, somewhere else &mdash; is materially harder.
+    Closing that gap needs training data following the same dog across days and places, which no public
+    dataset currently offers at scale.
+  </p>
+
+  <p>
+    Two further checks guard the numbers against flattering themselves. The separate breed-estimation model
+    scored 91.2% top-1 on the standard Stanford Dogs split &mdash; <em>higher</em> than its own model
+    card claims, which signals train/test overlap rather than success; on a clean holdout it scored
+    80.7%, and that is the figure reported. And picking demo examples by score alone surfaced
+    near-duplicate photos matching at 96%, technically true but practically meaningless, so the rule
+    became the most visually distinct photo that still ranks its own twin first. Demo scores sit at
+    70&ndash;90% rather than the high 90s as a result.
+  </p>
+
+  <h2>System architecture</h2>
+  <p>
+    FastAPI and SQLAlchemy over SQLite, serving a React + TypeScript frontend from the same origin,
+    packaged as a single Docker image on Hugging Face Spaces. The scoring rule is the design decision
+    worth naming: a dog&rsquo;s match score is the <strong>maximum cosine similarity across all (query
+    photo &times; candidate photo) pairs</strong>, so one weak photo cannot drag down an identity that
+    also matches strongly, and every extra angle can only help. Embeddings are stored tagged with
+    model version so vectors from different generations are never compared, and the demo&rsquo;s
+    read-only behaviour is enforced by server middleware rather than by hiding UI controls. Making it
+    work on phones meant normalising images client-side before upload, and making it fit its host
+    meant profiling the process to ~551 MB against a 512 MB limit.
+  </p>
+  <p>
+    One feature was tested and rejected. Alongside matching, the demo estimates breed &mdash; and that
+    classifier returns &ldquo;Pomeranian, 100%&rdquo; for random noise and for a blank square, because
+    with 120 classes and no &ldquo;none of these&rdquo; option softmax must elect a winner. I tried
+    gating it behind a confidence threshold to flag non-dog images, and it <strong>cannot work</strong>:
+    genuine Pomeranians score 99.85%, indistinguishable from noise. Rather than ship a filter that
+    tells owners their real dog may not be a dog, the interface states the limitation.
   </p>
 
   <h2>Next steps</h2>
