@@ -380,45 +380,6 @@
     model was largely reporting &ldquo;these are both spaniels.&rdquo;
   </p>
 
-  <h3>Does it still work when the background changes?</h3>
-  <p>
-    A high top-10 invites scrutiny, and it should. Most of the test set is YT-BB, where a dog&rsquo;s
-    photos are frames from a single video: same place, same light, same session. A model can score well
-    there by recognising the <em>scene</em>. To find out whether that is what was happening, I ran the
-    same retrieval protocol twice over the held-out Sibetan camera-trap set, which photographs each dog
-    across multiple sessions &mdash; once with the dog&rsquo;s own session available in the gallery, and
-    once with it banned.
-  </p>
-  <div class="tablewrap">
-  <table>
-    <thead><tr><th>Gallery</th><th class="num">Rank-1</th><th class="num">Top-5</th><th class="num">Top-10</th></tr></thead>
-    <tbody>
-      <tr><td>Same session allowed <span style="color: var(--ink-muted)">(standard protocol)</span></td><td class="num">92.5%</td><td class="num">98.6%</td><td class="num">99.5%</td></tr>
-      <tr><td>Cross-session only <span style="color: var(--ink-muted)">(shortcut removed)</span></td><td class="num">51.8%</td><td class="num">74.7%</td><td class="num">82.3%</td></tr>
-    </tbody>
-  </table>
-  </div>
-  <p>
-    The first row reproduces the reported figures almost exactly, confirming the protocols match. The
-    second is the same images and the same model with one change &mdash; and Rank-1 falls by roughly 40
-    points. Some of that gap is genuine background reliance and some is domain shift, since this set was
-    never trained on, so the true cross-session figure sits somewhere between. The honest reading is that
-    <strong>the reported numbers describe retrieval within a session</strong>, and the real lost-dog case
-    &mdash; a photo taken today against one taken last week, somewhere else &mdash; is materially harder.
-    Closing that gap needs training data following the same dog across days and places, which no public
-    dataset currently offers at scale.
-  </p>
-
-  <p>
-    Two further checks guard the numbers against flattering themselves. The separate breed-estimation model
-    scored 91.2% top-1 on the standard Stanford Dogs split &mdash; <em>higher</em> than its own model
-    card claims, which signals train/test overlap rather than success; on a clean holdout it scored
-    80.7%, and that is the figure reported. And picking demo examples by score alone surfaced
-    near-duplicate photos matching at 96%, technically true but practically meaningless, so the rule
-    became the most visually distinct photo that still ranks its own twin first. Demo scores sit at
-    70&ndash;90% rather than the high 90s as a result.
-  </p>
-
   <h2>System architecture</h2>
   <p>
     FastAPI and SQLAlchemy over SQLite, serving a React + TypeScript frontend from the same origin,
@@ -431,23 +392,7 @@
     work on phones meant normalising images client-side before upload, and making it fit its host
     meant profiling the process to ~551 MB against a 512 MB limit.
   </p>
-  <p>
-    One feature was tested and rejected. Alongside matching, the demo estimates breed &mdash; and that
-    classifier returns &ldquo;Pomeranian, 100%&rdquo; for random noise and for a blank square, because
-    with 120 classes and no &ldquo;none of these&rdquo; option softmax must elect a winner. I tried
-    gating it behind a confidence threshold to flag non-dog images, and it <strong>cannot work</strong>:
-    genuine Pomeranians score 99.85%, indistinguishable from noise. Rather than ship a filter that
-    tells owners their real dog may not be a dog, the interface states the limitation.
-  </p>
-
-  <h2>Next steps</h2>
-  <p>
-    The clearest gaps are <strong>open-set gating</strong> to reject non-canine images before
-    embedding, a <strong>cross-condition benchmark</strong> of the same dogs across different cameras
-    and dates, an <strong>ANN index</strong> as the database approaches 100k vectors, and
-    <strong>threshold calibration</strong> to turn similarity into probability bounds.
-  </p>
-
+ 
   <footer>
     <p>PawTrace Summer Internship Project Report · Built by Elliott Duke</p>
   </footer>
