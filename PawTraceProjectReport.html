@@ -354,42 +354,6 @@
     model was largely reporting &ldquo;these are both spaniels.&rdquo;
   </p>
 
-  <h2>System architecture</h2>
-  <p>
-    FastAPI and SQLAlchemy over SQLite, serving a React + TypeScript frontend from the same origin,
-    packaged as a single Docker image on Hugging Face Spaces. The scoring rule is the design decision
-    worth naming: a dog&rsquo;s match score is the <strong>maximum cosine similarity across all (query
-    photo &times; candidate photo) pairs</strong>, so one weak photo cannot drag down an identity that
-    also matches strongly, and every extra angle can only help. Embeddings are stored tagged with
-    model version so vectors from different generations are never compared, and the demo&rsquo;s
-    read-only behaviour is enforced by server middleware rather than by hiding UI controls. Making it
-    work on phones meant normalising images client-side before upload, and making it fit its host
-    meant profiling the process to ~551 MB against a 512 MB limit.
-  </p>
-
-  <h2>Judgment calls</h2>
-  <ul>
-    <li>
-      <strong>Rejected a feature after testing it.</strong> The breed classifier returned
-      &ldquo;Pomeranian, 100%&rdquo; for random noise and for a blank square. I tested a confidence
-      threshold to flag non-dog images; it <strong>cannot work</strong>, because genuine Pomeranians
-      score 99.85% &mdash; indistinguishable from noise. Rather than tell owners their real dog may not
-      be a dog, the interface states the limitation.
-    </li>
-    <li>
-      <strong>Caught a contaminated benchmark.</strong> The breed model scored 91.2% top-1 on the
-      standard Stanford Dogs split, <em>higher</em> than its own model card claims, which signals
-      train/test overlap rather than success. A clean holdout gave 80.7%, and that is the figure
-      reported.
-    </li>
-    <li>
-      <strong>Built the demo to avoid flattering itself.</strong> Picking demo examples by score alone
-      surfaced near-duplicate photos matching at 96% &mdash; technically true, practically meaningless.
-      The rule became the most visually distinct photo that still ranks its own twin first, putting
-      demo scores at 70&ndash;90% rather than the high 90s.
-    </li>
-  </ul>
-
   <h2>Next steps</h2>
   <p>
     The clearest gaps are <strong>open-set gating</strong> to reject non-canine images before
