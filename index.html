@@ -396,11 +396,11 @@
       <div class="card">
         <div class="card-main">
           <span class="card-tag">ML &amp; Full-Stack</span>
-          <h2 class="card-title">PawTrace — image-based dog re-identification</h2>
+          <h2 class="card-title">PawTrace — lost dog recovery</h2>
           <ul class="card-desc star-list">
-            <li>Fine-tuned a ResNet-101 with triplet loss to identify individual dogs from photos, lifting Rank-1 accuracy ~20 points over the pre-trained baseline to over 90%, with over 95% Top-10, on 400+ unseen dogs</li>
-            <li>Built a FastAPI + React + TypeScript full-stack app with JWT auth, image upload, and email notification pipelines</li>
-            <li>Packaged as a single Docker image and deployed to Hugging Face Spaces as a live read-only demo</li>
+            <li>Trained a ResNet-101 model with batch-hard triplet loss to match individual dogs across photos rather than by breed, achieving over 90% Rank-1 and over 95% Top-10 accuracy on 400+ held-out dogs</li>
+            <li>Assembled a 3-source training set of 17,593 images across 3,355 dogs; fine-tuning the base model added 21 percentage points of accuracy, with the largest gains on full-body photos</li>
+            <li>Deployed as a live demo via a FastAPI + React/TypeScript frontend packaged in a single Docker image on Hugging Face Spaces</li>
           </ul>
         </div>
         <div class="card-side">
@@ -461,7 +461,7 @@
             <span class="tech-pill">Scikit-Learn</span>
           </div>
           <div style="display:flex; gap:0.5rem; width:100%;">
-            <a class="card-link" href="MNISTNeuralNets.html" style="flex:1; justify-content:center;">With Neural Nets →</a>
+            <a class="card-link" href="MNISTNeuralNets.html" style="flex:1; justify-content:center;">Neural nets →</a>
             <a class="card-link" href="MNISTWithCNN.html" style="flex:1; justify-content:center;">With CNN →</a>
           </div>
         </div>
