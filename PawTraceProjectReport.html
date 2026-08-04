@@ -194,6 +194,26 @@
     outline-offset: 3px;
   }
 
+  /* Secondary action. Declared after .btn:hover so it wins the cascade on hover without
+     needing extra specificity. */
+  .btn-secondary {
+    background: transparent;
+    color: var(--navy-mid);
+    border: 1px solid rgba(11, 26, 46, 0.28);
+  }
+
+  .btn-secondary:hover {
+    background: var(--steel-light);
+    color: var(--navy);
+  }
+
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 1.75rem 0 0;
+  }
+
   .btn .arrow { transition: transform 0.15s; }
   .btn:hover .arrow { transform: translateX(2px); }
 
@@ -301,11 +321,14 @@
   </div>
 
 
-  <p style="margin: 1.75rem 0 0;">
+  <div class="btn-row">
     <a class="btn" href="https://pawtrace.predx.com/">
       View live demo <span class="arrow" aria-hidden="true">&rarr;</span>
     </a>
-  </p>
+    <a class="btn btn-secondary" href="https://github.com/Duke410/PawTrace">
+      View the code on GitHub
+    </a>
+  </div>
 
   <h2>Overview</h2>
   <p>
