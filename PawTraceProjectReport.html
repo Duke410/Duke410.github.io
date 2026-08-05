@@ -334,7 +334,7 @@
   <p>
     When I came up with the idea for this project, I decided that I would need to compare dogs using 
     image embeddings rather than simply trying to classify them. So every time a picture is uploaded,
-    it goes through a model to determine the dog in the picture's estimated breed and another model 
+    it goes through a model to determine the estimated breed of the dog in the picture and another model 
     that turns it into an embedding, which is a list of numbers describing that image. This embedding 
     keeps track of all the different features of the dog in the image, such as fur color, snout length, 
     or body size, and it gets stored in the database alongside the dog it belongs to. When someone 
@@ -355,7 +355,7 @@
     information might be useful for re-identification, so I decided to use a breed classification model
     as a base for the dog re-identification model. I ended up training only the last level of the
     classification model, so that it would retain as much breed information as possible before being
-    fine tuned using metric learning to recognize individual dogs using triplet loss. In this way, I
+    fine-tuned using metric learning to recognize individual dogs using triplet loss. In this way, I
     was able to make it so that the distance between two embeddings actually reflects whether they
     show the same dog.
   </p>
@@ -372,8 +372,8 @@
   <p>
     One catch worth being upfront about is that every image of a given dog in the YT-BB-Dog dataset
     comes from a single video, so the background stays the same across all of that dog's photos. 
-    Additionally, the images in DogFaceNet and MPDD were often taken multiple in a row, so their 
-    backgrounds tended to be similar for a given dog as well. This meant the model can score well by 
+    Additionally, the images in DogFaceNet and MPDD were often taken several in a row, so their 
+    backgrounds tended to be similar for a given dog as well. This means the model can score well by 
     learning the scene instead of learning the dog.
   </p>
   <p>
@@ -383,14 +383,14 @@
     However, in the end, it could not tell me anything useful because the dog images it contained had a 
     median size of about 81 by 75 pixels, while the model takes a 224 by 224 input. This meant that the 
     images in that dataset were just not high-quality enough to use for evaluation, and I could find no 
-    other dog re-identification datasets with explicitly different baground images.
+    other dog re-identification datasets with explicitly different background images.
    </p>
  
 
   <h2>Training</h2>
   <p>
-    The model started as a ResNet-101 model fine tuned for dog breed classification that outputs a
-    2,048 dimension embedding for each image. Images are normalized so that comparing two of them is just 
+    The model started as a ResNet-101 model fine-tuned for dog breed classification that outputs a
+    2,048 dimension embedding for each image. The embeddings are normalized so that comparing two of them is just 
     a matter of taking the cosine similarity between the two embeddings. I trained it further using batch-hard
     triplet loss, which samples each batch as 16 different dogs with 4 photos each, and then for every image 
     in that batch picks out the hardest positive, meaning the photo of the same dog that looks least similar
