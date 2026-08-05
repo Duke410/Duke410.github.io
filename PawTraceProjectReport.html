@@ -376,7 +376,16 @@
     backgrounds tended to be similar for a given dog as well. This meant the model can score well by 
     learning the scene instead of learning the dog.
   </p>
-
+  <p>
+    I did try to measure and account for this. There is a public camera trap dataset called the Sibetan 
+    dog dataset that photographs the same dogs across multiple days and cameras, which is exactly the 
+    cross background test I wanted, and I set it aside as a separate evaluation set from the start. 
+    However, in the end, it could not tell me anything useful because the dog images it contained had a 
+    median size of about 81 by 75 pixels, while the model takes a 224 by 224 input. This meant that the 
+    images in that dataset were just not high-quality enough to use for evaluation, and I could find no 
+    other dog re-identification datasets with explicitly different baground images.
+   </p>
+ 
 
   <h2>Training</h2>
   <p>
